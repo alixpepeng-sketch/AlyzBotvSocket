@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ALYZ BOT</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.view{align-items:center;justify-content:center}
+.wrap{width:100%;max-width:980px;display:flex;flex-direction:column;gap:38px}
+.mark{font-weight:800;letter-spacing:-.02em;font-size:18px;border:2.5px solid var(--ink);border-radius:16px;padding:8px 16px;align-self:flex-start;background:rgba(255,255,255,.6)}
+h1{font-size:clamp(34px,7.2vw,78px);line-height:1.04;font-weight:800;letter-spacing:-.035em;text-align:left;max-width:15em}
+h2{font-size:clamp(26px,5vw,40px);letter-spacing:-.03em;font-weight:800}
+.card{width:100%;max-width:520px;padding:30px;display:flex;flex-direction:column;gap:18px}
+p.sub{color:#333;line-height:1.5;font-size:16px}
+.err{font-weight:600;min-height:20px;font-size:15px}
+.code{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center}
+.code span{width:clamp(34px,9vw,48px);height:clamp(48px,12vw,62px);display:grid;place-items:center;font-size:clamp(22px,6vw,30px);font-weight:800;border:2.5px solid var(--ink);border-radius:14px;background:#fff;box-shadow:3px 3px 0 var(--ink);animation:pop .5s var(--ease) both;animation-delay:calc(var(--i)*60ms)}
+.code b{width:14px;height:4px;background:var(--ink);border-radius:4px}
+@keyframes pop{from{opacity:0;transform:translateY(12px) scale(.8)}}
+.steps{padding-left:20px;display:flex;flex-direction:column;gap:6px;line-height:1.45}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="blobs"><i></i><i></i><i></i></div>
+
+<main id="v-home" class="view on">
+  <div class="wrap">
+    <div class="mark">ALYZ BOT</div>
+    <h1>ALYZ BOT ADALAH platform multi-device WhatsApp assistant untuk auto tools dan management</h1>
+    <div><button id="start" class="liquid"><span>MULAI</span></button></div>
+  </div>
+</main>
+
+<main id="v-num" class="view">
+  <form id="f" class="card glass">
+    <h2>Masukkan nomor WhatsApp</h2>
+    <p class="sub">Gunakan format 62 tanpa tanda plus, contoh 6281234567890.</p>
+    <input id="num" inputmode="numeric" autocomplete="tel" placeholder="62xxxxxxxxxx" maxlength="16" required>
+    <div id="err" class="err" role="alert"></div>
+    <div class="row">
+      <button type="button" id="back" class="chip"><span>Kembali</span></button>
+      <button id="go" class="chip dark"><span>Minta kode pairing</span></button>
+    </div>
+  </form>
+</main>
+
+<main id="v-code" class="view">
+  <div class="card glass">
+    <h2 id="ct">Kode pairing kamu</h2>
+    <div id="code" class="code"></div>
+    <ol class="steps">
+      <li>Buka WhatsApp di HP, pilih Perangkat tertaut.</li>
+      <li>Ketuk Tautkan perangkat, lalu pilih Tautkan dengan nomor telepon.</li>
+      <li>Masukkan kode di atas.</li>
+    </ol>
+    <div id="st" class="err">Menunggu kamu memasukkan kode...</div>
+    <div class="row">
+      <button id="copy" class="chip"><span>Salin kode</span></button>
+      <button id="again" class="chip"><span>Nomor lain</span></button>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s)
+const show = id => document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === id))
+document.querySelectorAll('.liquid,.chip').forEach(b => b.addEventListener('pointermove', e => {
+  const r = b.getBoundingClientRect(); b.style.setProperty('--x', e.clientX - r.left + 'px'); b.style.setProperty('--y', e.clientY - r.top + 'px')
+}))
+let timer, raw = ''
+$('#start').onclick = () => { show('v-num'); $('#num').focus() }
+$('#back').onclick = () => show('v-home')
+$('#again').onclick = () => { clearInterval(timer); show('v-num') }
+$('#copy').onclick = async () => { try { await navigator.clipboard.writeText(raw); $('#copy span').textContent = 'Tersalin' } catch {} }
+$('#f').onsubmit = async e => {
+  e.preventDefault()
+  const number = $('#num').value.replace(/\D/g, '')
+  $('#err').textContent = ''
+  $('#go').disabled = true; $('#go span').textContent = 'Membuat kode...'
+  try {
+    const r = await fetch('/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ number }) })
+    const j = await r.json()
+    if (!r.ok) throw new Error(j.error || 'Gagal')
+    raw = j.code
+    const a = raw.slice(0, 4), b = raw.slice(4)
+    $('#code').innerHTML = [...a].map((c, i) => `<span style="--i:${i}">${c}</span>`).join('') + '<b></b>' + [...b].map((c, i) => `<span style="--i:${i + 4}">${c}</span>`).join('')
+    $('#copy span').textContent = 'Salin kode'
+    show('v-code')
+    clearInterval(timer)
+    timer = setInterval(async () => {
+      const s = await (await fetch('/api/status/' + number)).json()
+      if (s.connected) { clearInterval(timer); $('#ct').textContent = 'Berhasil terhubung'; $('#st').textContent = 'Nomor ' + number + ' sudah aktif. Ketik .menu di WhatsApp.' }
+    }, 2500)
+  } catch (err) { $('#err').textContent = err.message }
+  $('#go').disabled = false; $('#go span').textContent = 'Minta kode pairing'
+}
+</script>
+</body>
+</html>
